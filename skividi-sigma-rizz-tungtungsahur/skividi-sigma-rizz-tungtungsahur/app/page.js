@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getSupabase, getSupabaseSetupError } from "../lib/supabase";
 
-// Change this one value to 5 if you want five logo clicks to reveal the form.
-// Keep it at 1 for the requested simple click-to-reveal behavior.
-const LOGO_CLICKS_TO_REVEAL = 1;
+// Hidden entry is only a discovery mechanism, never a substitute for authentication or RLS.
+const LOGO_CLICKS_TO_REVEAL = 5;
+const SECRET_KEY_SEQUENCE = "knock"; // Change this to your own private phrase before deployment.
 const POLL_INTERVAL_MS = 4000;
 const MAX_INITIAL_MESSAGES = 100;
 
@@ -96,9 +96,18 @@ function ChatMessage({ message, previous, currentUserId, onDelete }) {
 export default function HomePage() {
   const [entryVisible, setEntryVisible] = useState(false);
   const [logoClicks, setLogoClicks] = useState(0);
+  const [gateUnlocked, setGateUnlocked] = useState(false);
+  const secretBufferRef = useRef("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loginBusy, setLoginBusy] = useState(false);
+  const [authMode, setAuthMode] = useState("login");
+  const [displayNameInput, setDisplayNameInput] = useState("");
+  const [profile, setProfile] = useState(null);
+  const [adminMembers, setAdminMembers] = useState([]);
+  const [adminBusy, setAdminBusy] = useState(false);
+  const [adminError, setAdminError] = useState("");
+  const [showAdmin, setShowAdmin] = useState(false);
   const [loginError, setLoginError] = useState("");
   const [user, setUser] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -122,14 +131,37 @@ export default function HomePage() {
   const supabase = useMemo(() => getSupabase(), []);
 
   const revealEntry = () => {
-    const next = logoClicks + 1;
-    setLogoClicks(next);
-    if (next >= LOGO_CLICKS_TO_REVEAL) {
+    if (gateUnlocked) {
       setEntryVisible((visible) => !visible);
-      setLogoClicks(0);
       setLoginError("");
+      return;
     }
+    setLogoClicks((clicks) => {
+      const next = clicks + 1;
+      if (next >= LOGO_CLICKS_TO_REVEAL) {
+        setGateUnlocked(true);
+        setEntryVisible(true);
+        return 0;
+      }
+      return next;
+    });
   };
+
+  useEffect(() => {
+    const onSecretKey = (event) => {
+      if (event.ctrlKey || event.altKey || event.metaKey || event.key.length !== 1) return;
+      const target = event.target;
+      if (target?.closest?.("input, textarea, [contenteditable='true']")) return;
+      secretBufferRef.current = (secretBufferRef.current + event.key.toLowerCase()).slice(-SECRET_KEY_SEQUENCE.length);
+      if (secretBufferRef.current === SECRET_KEY_SEQUENCE) {
+        setGateUnlocked(true);
+        setEntryVisible(true);
+        secretBufferRef.current = "";
+      }
+    };
+    window.addEventListener("keydown", onSecretKey);
+    return () => window.removeEventListener("keydown", onSecretKey);
+  }, []);
 
   const scrollToLatest = useCallback(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -210,7 +242,36 @@ export default function HomePage() {
   }, [supabase]);
 
   useEffect(() => {
-    if (!user || !supabase) return undefined;
+    if (!user || !supabase) { setProfile(null); return; }
+    let live = true;
+    const refresh = async () => {
+      const { data, error } = await supabase.from("profiles").select("id,display_name,status,role").eq("id", user.id).maybeSingle();
+      if (live) { setProfile(error ? null : data); if (error) setAdminError("Membership configuration is missing. Run the new schema.sql in Supabase."); }
+    };
+    refresh();
+    const timer = setInterval(refresh, 12000);
+    return () => { live = false; clearInterval(timer); };
+  }, [user?.id, supabase]);
+
+  const loadMembers = useCallback(async () => {
+    if (!supabase) return;
+    const { data, error } = await supabase.from("profiles").select("id,display_name,status,role,created_at").order("created_at", {ascending:false});
+    if (error) setAdminError(error.message);
+    else {setAdminError("");setAdminMembers(data || []);}
+  }, [supabase]);
+
+  useEffect(() => { if (profile?.role === "admin" && showAdmin) loadMembers(); }, [profile?.role, showAdmin, loadMembers]);
+
+  const changeMember = async (member, status) => {
+    setAdminBusy(true);
+    const { error } = await supabase.from("profiles").update({status}).eq("id", member.id);
+    setAdminBusy(false);
+    if (error) setAdminError(error.message);
+    else await loadMembers();
+  };
+
+  useEffect(() => {
+    if (!user || !supabase || profile?.status !== "approved") return undefined;
     let active = true;
     let channel;
     setChatError("");
@@ -258,14 +319,14 @@ export default function HomePage() {
       channelRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, supabase]);
+  }, [user?.id, supabase, profile?.status]);
 
   // Poll every four seconds whenever Realtime is not connected.
   useEffect(() => {
-    if (!user || !supabase || realtimeState === "connected") return undefined;
+    if (!user || !supabase || profile?.status !== "approved" || realtimeState === "connected") return undefined;
     const timer = setInterval(() => loadMessages(false), POLL_INTERVAL_MS);
     return () => clearInterval(timer);
-  }, [user, supabase, realtimeState, loadMessages]);
+  }, [user, supabase, profile?.status, realtimeState, loadMessages]);
 
   useEffect(() => {
     if (!user) {
@@ -316,9 +377,18 @@ export default function HomePage() {
     }
     setLoginBusy(true);
     setLoginError("");
-    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+    try {
+      if (authMode === "register") {
+        const { data, error } = await supabase.auth.signUp({ email: email.trim(), password, options: {data: {display_name: displayNameInput.trim().slice(0, 60)}} });
+        if (error) setLoginError(error.message);
+        else if (!data.session) setLoginError("Account request received. Check your email to confirm it, then sign in. An administrator must approve access.");
+        else setLoginError("Account created. Your access is pending administrator approval.");
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+        if (error) setLoginError(error.message);
+      }
+    } catch (error) {setLoginError(error.message || "Something went wrong.");}
     setLoginBusy(false);
-    if (error) setLoginError("Unable to sign in. Check your details or contact the site administrator.");
   };
 
   const signOut = async () => {
@@ -371,12 +441,17 @@ export default function HomePage() {
     return output;
   }, [messages]);
 
+  if (user && profile?.status !== "approved") {
+    return <main className="landing"><div className="access-state"><LogoMark /><h1>{profile?.status === "rejected" ? "Access declined" : profile?.status === "suspended" ? "Access suspended" : "Request pending"}</h1><p>{!profile ? "Checking membership status…" : profile.status === "pending" ? "Your account exists. An administrator needs to approve your request before you can join the chat. This page checks for approval automatically." : "Contact the site administrator if you need help."}</p>{adminError && <p className="login-error">{adminError}</p>}<button className="login-button" onClick={signOut}>Sign out</button></div></main>;
+  }
+
   if (user) {
     return (
       <main className="workspace">
         <aside className="sidebar">
           <div className="sidebar-brand"><span className="terminal-glyph">⌘</span><div><strong>SKIVIDI</strong><small>MEMBERS TERMINAL</small></div></div>
           <div className="sidebar-section-label">WORKSPACE</div>
+          {profile?.role === "admin" && <button className="sidebar-room" type="button" onClick={() => setShowAdmin(v=>!v)}>{showAdmin ? "← Back to chat" : "⚙ Member approvals"}</button>}
           <div className="sidebar-room active-room"><span className="room-symbol">#</span><span>general</span><span className="room-pill">LIVE</span></div>
           <div className="sidebar-section-label members-label">ONLINE MEMBERS <span>{onlineMembers.length + 1}</span></div>
           <div className="sidebar-member"><span className="online-dot"/><span>You</span><small>online</small></div>
@@ -385,6 +460,7 @@ export default function HomePage() {
           <div className="sidebar-bottom"><div className="account-avatar">{initials(user.user_metadata?.display_name || user.email || "Member")}</div><div className="account-details"><strong>{user.user_metadata?.display_name || user.email?.split("@")[0] || "Member"}</strong><small>Authenticated member</small></div><button type="button" className="sidebar-logout" onClick={signOut} title="Sign out" aria-label="Sign out">↪</button></div>
         </aside>
         <section className="chat-column">
+          {showAdmin && profile?.role === "admin" ? <div className="admin-panel"><div className="admin-heading"><div><small>ADMINISTRATION</small><h1>Member access</h1><p>Approve requests before anyone can enter the room.</p></div><button onClick={loadMembers}>Refresh</button></div>{adminError && <p className="login-error">{adminError}</p>}<div className="member-table">{adminMembers.map(member=><div className="member-admin-row" key={member.id}><div><strong>{member.display_name || "Member"}</strong><small>{member.role} · {member.status}</small></div><div className="member-actions">{member.role !== "admin" && <><button disabled={adminBusy || member.status === "approved"} onClick={()=>changeMember(member,"approved")}>Approve</button><button disabled={adminBusy || member.status === "rejected"} onClick={()=>changeMember(member,"rejected")}>Reject</button><button disabled={adminBusy || member.status === "suspended"} onClick={()=>changeMember(member,"suspended")}>Suspend</button></>}</div></div>)}</div></div> : <>
           <header className="topbar"><div className="topbar-title"><span className="topbar-hash">#</span><strong>general</strong><span className="topbar-description">Private members conversation</span></div><div className="topbar-actions"><span className={`connection-status ${realtimeState === "connected" ? "is-connected" : ""}`}><i />{realtimeState === "connected" ? "Connected" : "Reconnecting"}</span><button type="button" className="topbar-sound" onClick={() => {setSoundReady(true);setSoundEnabled((v) => !v);}} aria-pressed={soundEnabled} title="Toggle notification sounds">{soundEnabled ? "♫ On" : "♫ Off"}</button><button type="button" className="mobile-logout" onClick={signOut}>Sign out</button></div></header>
           <div className="conversation-body">
             <div className="message-list" ref={listRef}>
@@ -402,29 +478,40 @@ export default function HomePage() {
               <div className="composer-hint"><span>ENTER to send · SHIFT + ENTER for newline</span><span>{draft.length}/5000</span></div>
             </div></div>
           </div>
+          </>}
         </section>
       </main>
     );
   }
 
   return (
-    <main className="landing">
-      <div className="landing-center">
-        <button className="logo-trigger" type="button" onClick={revealEntry} aria-label="Open the private entrance">
-          <LogoMark />
-        </button>
-        {entryVisible && (
-          <form className="login-form" onSubmit={signIn}>
-            <label htmlFor="email">Email</label>
-            <input id="email" type="email" autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} required />
-            <label htmlFor="password">Password</label>
-            <input id="password" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required />
-            {loginError && <p className="login-error" role="alert">{loginError}</p>}
-            <button className="login-button" type="submit" disabled={loginBusy}>{loginBusy ? "Please wait…" : "Continue"}</button>
-          </form>
-        )}
+    <main className="encyclopedia" id="top">
+      <header className="wiki-header">
+        <div className="wiki-brand"><div className="wiki-globe" aria-hidden="true">◈</div><div><strong>THE OPEN ATLAS</strong><small>The free reference collection</small></div></div>
+        <form className="wiki-search" onSubmit={(e)=>e.preventDefault()} role="search"><span aria-hidden="true">⌕</span><input aria-label="Search the Open Atlas" placeholder="Search the Open Atlas"/><button type="submit">Search</button></form>
+        <div className="wiki-account"><span>Contribute</span><span>Languages</span></div>
+      </header>
+      <div className="wiki-layout">
+        <aside className="wiki-toc" aria-label="Contents"><strong>Contents</strong><div className="wiki-rule"/><a href="#top">(Top)</a><a href="#overview">Overview</a><a href="#origins">Origins</a><a href="#examples">Notable examples</a><a href="#references">References</a></aside>
+        <article className="wiki-article">
+          <div className="wiki-titleline"><h1>Unusual collections</h1><span>42 languages⌄</span></div>
+          <nav className="wiki-tabs" aria-label="Article navigation"><div><span className="selected">Article</span><span>Discussion</span></div><div><span className="selected">Read</span><span>View source</span><span>History</span></div></nav>
+          <p className="wiki-from">From The Open Atlas, the free reference collection</p>
+          <div className="wiki-notice"><span className="wiki-notice-icon">ⓘ</span><p>This page is part of the <b>Unusual Topics</b> collection. It documents curious archives, peculiar classifications, and obscure reference works.</p></div>
+          <p id="overview"><b>Unusual collections</b> are groups of records, artifacts, or documents assembled around unexpected themes. Such collections may originate from scholarly interests, local traditions, or personal curiosity.</p>
+          <div className="wiki-infobox"><div className="wiki-infobox-heading">Unusual collections</div><div className="wiki-infobox-illustration" aria-hidden="true"><span>✦</span><span>◌</span><span>✧</span></div><div className="wiki-infobox-caption">Illustration of an abstract archival collection</div><div className="wiki-info-row"><b>Category</b><span>Reference and culture</span></div><div className="wiki-info-row"><b>Scope</b><span>Worldwide</span></div></div>
+          <p>Researchers sometimes use these collections to investigate how people organize information and assign meaning to ordinary objects. The resulting archives can be unexpectedly informative.</p>
+          <h2 id="origins">Origins</h2><p>Collections have been maintained for centuries in libraries, museums, and private catalogues. Some began as systematic inventories, while others grew from informal correspondence between enthusiasts.</p>
+          <h2 id="examples">Notable examples</h2><p>Examples include indexes of obsolete technologies, catalogues of unusual place names, and curated lists of historical curiosities. Classification systems vary widely by region and era.</p>
+          <h2 id="references">References</h2><ol><li>Open Atlas editorial notes. “On classification and collections.”</li><li>Open Atlas reference guide. “Methods of cataloguing.”</li></ol>
+          <div className="wiki-footnote">This is a fictional encyclopedia-style page created for this website; it is not Wikipedia.</div>
+          <button className="wiki-secret-mark" type="button" onClick={revealEntry} aria-label="Article page marker" aria-expanded={entryVisible} aria-controls="access-form">✣</button>
+        </article>
+        <aside className="wiki-appearance" aria-label="Appearance"><strong>Appearance</strong><div className="wiki-rule"/><small>Text</small><p>◉ Standard</p><p>◯ Large</p><small>Width</small><p>◉ Standard</p><p>◯ Wide</p><small>Color</small><p>◉ Light</p><p>◯ Dark</p></aside>
       </div>
-      <span className="setup-notice" aria-live="polite">{!supabase ? getSupabaseSetupError() : ""}</span>
+      {entryVisible && <div className="wiki-access-backdrop" onClick={()=>setEntryVisible(false)}><section className="wiki-access-modal" role="dialog" aria-modal="true" aria-label="Member access" onClick={e=>e.stopPropagation()}><div className="wiki-access-heading"><span>MEMBER ACCESS</span><button type="button" onClick={()=>setEntryVisible(false)} aria-label="Close access">×</button></div><form id="access-form" className="login-form" onSubmit={signIn}><div className="auth-switch"><button type="button" className={authMode === "login" ? "selected" : ""} onClick={()=>{setAuthMode("login");setLoginError("");}}>Sign in</button><button type="button" className={authMode === "register" ? "selected" : ""} onClick={()=>{setAuthMode("register");setLoginError("");}}>Request access</button></div>{authMode === "register" && <><label htmlFor="display-name">Display name</label><input id="display-name" value={displayNameInput} onChange={e=>setDisplayNameInput(e.target.value)} maxLength={60} minLength={2} required autoComplete="nickname" /></>}<label htmlFor="email">Email</label><input id="email" type="email" autoComplete="username" value={email} onChange={e=>setEmail(e.target.value)} required /><label htmlFor="password">Password</label><input id="password" type="password" autoComplete={authMode === "register" ? "new-password" : "current-password"} minLength={6} value={password} onChange={e=>setPassword(e.target.value)} required />{loginError && <p className="login-error" role="alert">{loginError}</p>}<button className="login-button" type="submit" disabled={loginBusy}>{loginBusy ? "Please wait…" : authMode === "register" ? "Create account & request access" : "Sign in"}</button></form></section></div>}
+      {gateUnlocked && !entryVisible && <button className="wiki-access-shortcut" type="button" onClick={()=>setEntryVisible(true)}>Member access</button>}
+      {!supabase && <div className="wiki-setup" role="status">{getSupabaseSetupError()}</div>}
     </main>
   );
 }

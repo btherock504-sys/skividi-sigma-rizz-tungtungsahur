@@ -1,8 +1,8 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "Skividi sigma rizz tungtungsahur",
-  description: "Members-only realtime chat.",
+  title: "Unusual collections — The Open Atlas",
+  description: "An independent reference collection of unusual topics.",
   robots: {
     index: false,
     follow: false,
@@ -13,7 +13,7 @@ export const metadata = {
 export const viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#10131b"
+  themeColor: "#ffffff"
 };
 
 export default function RootLayout({ children }) {
