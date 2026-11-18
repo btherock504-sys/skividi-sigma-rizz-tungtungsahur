@@ -1,8 +1,8 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "Unusual collections — The Open Atlas",
-  description: "An independent reference collection of unusual topics.",
+  title: "The Triple T Incident — THE SLOP gazetteer.",
+  description: "A fictional encyclopedia of strange internet folklore and unusual topics.",
   robots: {
     index: false,
     follow: false,
