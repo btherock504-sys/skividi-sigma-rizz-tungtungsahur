@@ -449,9 +449,9 @@ export default function HomePage() {
     return (
       <main className="workspace">
         <aside className="sidebar">
-          <div className="sidebar-brand"><span className="terminal-glyph">⌘</span><div><strong>SKIVIDI</strong><small>MEMBERS TERMINAL</small></div></div>
-          <div className="sidebar-section-label">WORKSPACE</div>
-          {profile?.role === "admin" && <button className="sidebar-room" type="button" onClick={() => setShowAdmin(v=>!v)}>{showAdmin ? "← Back to chat" : "⚙ Member approvals"}</button>}
+          <div className="sidebar-brand"><span className="terminal-glyph">⌘</span><div><strong>SKIVIDI</strong><small>PRIVATE CHAT</small></div></div>
+          <div className="sidebar-section-label">CHATS</div>
+          {profile?.role === "admin" && <button className="sidebar-room" type="button" onClick={() => setShowAdmin(v=>!v)}>{showAdmin ? "← Back to chat" : "Member approvals"}</button>}
           <div className="sidebar-room active-room"><span className="room-symbol">#</span><span>general</span><span className="room-pill">LIVE</span></div>
           <div className="sidebar-section-label members-label">ONLINE MEMBERS <span>{onlineMembers.length + 1}</span></div>
           <div className="sidebar-member"><span className="online-dot"/><span>You</span><small>online</small></div>
@@ -461,11 +461,11 @@ export default function HomePage() {
         </aside>
         <section className="chat-column">
           {showAdmin && profile?.role === "admin" ? <div className="admin-panel"><div className="admin-heading"><div><small>ADMINISTRATION</small><h1>Member access</h1><p>Approve requests before anyone can enter the room.</p></div><button onClick={loadMembers}>Refresh</button></div>{adminError && <p className="login-error">{adminError}</p>}<div className="member-table">{adminMembers.map(member=><div className="member-admin-row" key={member.id}><div><strong>{member.display_name || "Member"}</strong><small>{member.role} · {member.status}</small></div><div className="member-actions">{member.role !== "admin" && <><button disabled={adminBusy || member.status === "approved"} onClick={()=>changeMember(member,"approved")}>Approve</button><button disabled={adminBusy || member.status === "rejected"} onClick={()=>changeMember(member,"rejected")}>Reject</button><button disabled={adminBusy || member.status === "suspended"} onClick={()=>changeMember(member,"suspended")}>Suspend</button></>}</div></div>)}</div></div> : <>
-          <header className="topbar"><div className="topbar-title"><span className="topbar-hash">#</span><strong>general</strong><span className="topbar-description">Private members conversation</span></div><div className="topbar-actions"><span className={`connection-status ${realtimeState === "connected" ? "is-connected" : ""}`}><i />{realtimeState === "connected" ? "Connected" : "Reconnecting"}</span><button type="button" className="topbar-sound" onClick={() => {setSoundReady(true);setSoundEnabled((v) => !v);}} aria-pressed={soundEnabled} title="Toggle notification sounds">{soundEnabled ? "♫ On" : "♫ Off"}</button><button type="button" className="mobile-logout" onClick={signOut}>Sign out</button></div></header>
+          <header className="topbar"><div className="topbar-title"><span className="topbar-hash">#</span><strong>general</strong><span className="topbar-description">Members-only conversation</span></div><div className="topbar-actions"><span className={`connection-status ${realtimeState === "connected" ? "is-connected" : ""}`}><i />{realtimeState === "connected" ? "Connected" : "Reconnecting"}</span><button type="button" className="topbar-sound" onClick={() => {setSoundReady(true);setSoundEnabled((v) => !v);}} aria-pressed={soundEnabled} title="Toggle notification sounds">{soundEnabled ? "♫ On" : "♫ Off"}</button><button type="button" className="mobile-logout" onClick={signOut}>Sign out</button></div></header>
           <div className="conversation-body">
             <div className="message-list" ref={listRef}>
               <div className="conversation-inner">
-                <div className="conversation-intro"><div className="intro-mark">⌘</div><div className="eyebrow">ENCRYPTION NOT ENABLED · MEMBERS ONLY</div><h1>Welcome to the terminal.</h1><p>A quiet space for your crew. Messages here are shared with signed-in members.</p></div>
+                <div className="conversation-intro"><div className="intro-mark">⌘</div><div className="eyebrow">PRIVATE MEMBERS CHAT · NOT END-TO-END ENCRYPTED</div><h1>Welcome to your space.</h1><p>A quiet space for your crew. Messages here are shared with signed-in members.</p></div>
                 {groupedMessages.map((item) => item.type === "day" ? <div className="day-divider" key={item.id}><span>{item.label}</span></div> : <ChatMessage key={item.message.id} message={item.message} previous={item.previous} currentUserId={user.id} onDelete={deleteMessage}/>)}
                 <div ref={bottomRef}/>
               </div>
@@ -474,7 +474,7 @@ export default function HomePage() {
             <div className="composer-wrap"><div className="composer-inner">
               {typingMembers.length > 0 && <div className="typing-line"><span className="typing-dots">•••</span> {typingMembers.map((member) => member.display_name || "Someone").join(", ")} {typingMembers.length === 1 ? "is" : "are"} typing</div>}
               {chatError && <div className="inline-error" role="status">{chatError}</div>}
-              <div className="composer"><span className="prompt-symbol">›</span><textarea value={draft} onChange={(event) => handleDraftChange(event.target.value)} onKeyDown={(event) => {if (event.key === "Enter" && !event.shiftKey) {event.preventDefault();sendMessage();}}} placeholder="Message #general..." rows={2} maxLength={5000} aria-label="Write a message"/><button className="send-button" type="button" onClick={sendMessage} disabled={!draft.trim() || sending} aria-label="Send message">{sending ? "…" : "↑"}</button></div>
+              <div className="composer"><textarea value={draft} onChange={(event) => handleDraftChange(event.target.value)} onKeyDown={(event) => {if (event.key === "Enter" && !event.shiftKey) {event.preventDefault();sendMessage();}}} placeholder="Message your crew..." rows={2} maxLength={5000} aria-label="Write a message"/><button className="send-button" type="button" onClick={sendMessage} disabled={!draft.trim() || sending} aria-label="Send message">{sending ? "…" : "↑"}</button></div>
               <div className="composer-hint"><span>ENTER to send · SHIFT + ENTER for newline</span><span>{draft.length}/5000</span></div>
             </div></div>
           </div>

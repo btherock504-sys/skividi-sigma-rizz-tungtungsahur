@@ -52,3 +52,68 @@
 .encyclopedia, .encyclopedia button, .encyclopedia input, .encyclopedia textarea, .encyclopedia select {font-family:"Times New Roman",Times,serif;}
 .encyclopedia .wiki-brand strong, .encyclopedia .wiki-brand small, .encyclopedia .wiki-titleline h1, .encyclopedia .wiki-article h2, .encyclopedia .wiki-search input, .encyclopedia .wiki-access-modal {font-family:"Times New Roman",Times,serif;}
 @media(max-width:680px){.encyclopedia .wiki-brand strong{font-size:19px;white-space:normal}}
+
+
+/* V7: ChatGPT-inspired private chat. Scoped to authenticated workspace only. */
+.workspace{--bg:#212121;--side:#171717;--panel:#2f2f2f;--line:#343434;--text:#f4f4f4;--muted:#a3a3a3;--accent:#f5f5f5;--accent-soft:#303030;background:#212121;color:#f4f4f4;font-family:Arial,Helvetica,sans-serif}
+.workspace button,.workspace textarea{font-family:inherit}
+.workspace .sidebar{background:#171717;border-right:1px solid #252525;padding:22px 12px 0;width:260px}
+.workspace .sidebar-brand{padding:0 10px 30px;gap:10px}
+.workspace .terminal-glyph{background:#292929;border:0;color:#f5f5f5;border-radius:50%;font-size:22px;width:36px;height:36px}
+.workspace .sidebar-brand strong{font:700 15px Arial,Helvetica,sans-serif;letter-spacing:.02em}
+.workspace .sidebar-brand small{font:11px Arial,Helvetica,sans-serif;letter-spacing:0;color:#999}
+.workspace .sidebar-section-label{font:600 11px Arial,Helvetica,sans-serif;color:#888;letter-spacing:.01em;margin-bottom:8px}
+.workspace .sidebar-room{background:transparent;border:0;text-align:left;color:#dedede;font-size:13px;font-weight:500;min-height:42px;border-radius:9px;width:100%;cursor:pointer}
+.workspace .sidebar-room:hover{background:#292929}
+.workspace .active-room{background:#292929;border:0}
+.workspace .room-symbol{color:#eee;font-size:18px}
+.workspace .room-pill{color:#aaa;font:10px Arial,Helvetica,sans-serif}
+.workspace .members-label{margin-top:30px}
+.workspace .sidebar-member{color:#ddd}
+.workspace .sidebar-member small,.workspace .sidebar-empty{color:#888}
+.workspace .sidebar-bottom{border-color:#343434}
+.workspace .account-avatar{background:#484848;color:#fff;border-radius:50%}
+.workspace .sidebar-logout{color:#ccc}
+.workspace .chat-column{background:#212121}
+.workspace .topbar{height:66px;border-bottom:0;padding:0 30px}
+.workspace .topbar-title strong{font-size:18px;font-weight:600}
+.workspace .topbar-hash{color:#ddd;font-size:19px}
+.workspace .topbar-description{border-left:0;color:#999;font-size:12px}
+.workspace .connection-status{font:11px Arial,Helvetica,sans-serif;color:#aaa}
+.workspace .topbar-sound,.workspace .mobile-logout{background:#2f2f2f;border:1px solid #444;color:#ddd;border-radius:20px}
+.workspace .conversation-inner{width:min(100%,790px);padding:28px 28px 48px}
+.workspace .conversation-intro{padding:70px 0 45px}
+.workspace .intro-mark{border:0;background:#303030;color:#f5f5f5;border-radius:50%;font-size:27px}
+.workspace .eyebrow{font:11px Arial,Helvetica,sans-serif;letter-spacing:.06em;color:#999}
+.workspace .conversation-intro h1{font-size:29px;letter-spacing:-.035em;font-weight:600}
+.workspace .conversation-intro p{color:#aaa;font-size:14px}
+.workspace .day-divider{color:#888;font:11px Arial,Helvetica,sans-serif}
+.workspace .message-row{max-width:100%;gap:12px;margin:0 0 22px}
+.workspace .message-row.mine{justify-content:flex-end}
+.workspace .message-row.mine .avatar,.workspace .message-row.mine .avatar-spacer{display:none}
+.workspace .message-row.mine .message-content{flex:0 1 auto;max-width:80%;display:flex;flex-direction:column;align-items:flex-end}
+.workspace .message-row.mine .message-author{display:none}
+.workspace .message-row.mine .bubble{background:#303030;border-radius:22px;padding:11px 15px;display:flex;flex-direction:column;gap:4px}
+.workspace .message-row.mine .message-text{color:#f4f4f4}
+.workspace .message-row.mine .message-meta{align-self:flex-end;padding:0;color:#999}
+.workspace .message-row:not(.mine) .bubble{display:flex;flex-direction:column;gap:4px}
+.workspace .message-row:not(.mine) .message-meta{padding:0;color:#888}
+.workspace .message-author{font-size:13px;color:#eee;margin-bottom:5px}
+.workspace .mine .message-author{color:#eee}
+.workspace .avatar{border-radius:50%}
+.workspace .message-text{font-size:14px;line-height:1.65;color:#ececec}
+.workspace .message-meta{font:10px Arial,Helvetica,sans-serif}
+.workspace .composer-wrap{background:linear-gradient(transparent,#212121 16%);padding:12px 24px 20px}
+.workspace .composer-inner{max-width:760px}
+.workspace .composer{background:#303030;border:1px solid #424242;border-radius:26px;box-shadow:none;padding:13px 16px;align-items:center;gap:10px}
+.workspace .composer:focus-within{border-color:#777}
+.workspace .composer textarea{font-size:14px;color:#f4f4f4;line-height:1.5;min-height:36px}
+.workspace .composer textarea::placeholder{color:#aaa}
+.workspace .send-button{background:#f5f5f5;color:#202020;border-radius:50%;width:34px;height:34px;font-size:22px;flex:none}
+.workspace .composer-hint{color:#858585;font:10px Arial,Helvetica,sans-serif;text-align:center}
+.workspace .latest-button{background:#303030;border:1px solid #505050;color:#eee}
+.workspace .typing-line{color:#aaa}
+.workspace .typing-dots{color:#ddd}
+.workspace .admin-panel{background:#212121;color:#eee}
+@media(max-width:760px){.workspace .sidebar{width:195px;padding:16px 8px 0}.workspace .topbar{padding:0 18px}.workspace .conversation-inner{padding:20px 18px 36px}.workspace .composer-wrap{padding:10px 14px 16px}}
+@media(max-width:560px){.workspace .sidebar{display:none}.workspace .topbar{height:60px;padding:0 14px}.workspace .conversation-inner{padding:14px 14px 30px}.workspace .message-row.mine .message-content{max-width:90%}.workspace .composer{border-radius:22px}.workspace .composer-hint{font-size:9px}}
